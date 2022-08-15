@@ -48,7 +48,7 @@ services:
       - xpack.security.enabled=true
       - xpack.monitoring.collection.enabled=true
       - xpack.security.audit.enabled=true
-      - xpack.license.self_generated.type=trial
+      - xpack.license.self_generated.type=basic
       - network.host=0.0.0.0
     networks:
       - elastic
