@@ -6,31 +6,51 @@ version: "3.9"
 services:
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-7.9.1}
+    image: ${DOCKER_REPO:-}elastic/elasticsearch:${ELASTIC_VERSION:-8.3.3}
     environment:
       # https://github.com/docker/swarmkit/issues/1951
       - node.name={{.Node.Hostname}}
-      - discovery.seed_hosts=elasticsearch
-      - cluster.initial_master_nodes=${INITIAL_MASTER_NODES:-node1}
-      - cluster.name=DevOps
+      - discovery.seed_hosts=${INITIAL_MASTER_NODES:-ccm-l2-kafka-node1}
+      - cluster.initial_master_nodes=${INITIAL_MASTER_NODES:-ccm-l2-kafka-node1}
+      - cluster.name=elk
       - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
-      - xpack.security.enabled=false
-      - xpack.monitoring.collection.enabled=false
+      - xpack.security.enabled=true
+      - xpack.monitoring.collection.enabled=true
       - xpack.security.audit.enabled=false
       - xpack.license.self_generated.type=basic
       - network.host=0.0.0.0
+      - "ES_JAVA_OPTS=-Xms${ES_HEAP_SIZE:-2g} -Xmx${ES_HEAP_SIZE:-2g}"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     networks:
-      - elastic
+      - elk_network
     ports:
       - 9200:9200
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - elasticsearch:/usr/share/elasticsearch/data
     deploy:
-      mode: 'global'
-      #  endpoint_mode: dnsrr
+      placement:
+        max_replicas_per_node: 1
+        constraints:
+        - node.labels.ElasticNode == ccm-elastic-node
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"    # number of files or file count
+        max-size: "200m" # file size
 
   logstash:
-    image: docker.elastic.co/logstash/logstash:${ELASTIC_VERSION:-7.9.1}
+    image: ${DOCKER_REPO:-}elastic/logstash:${ELASTIC_VERSION:-8.3.3}
     hostname: "{{.Node.Hostname}}-logstash"
     environment:
       - XPACK_MONITORING_ELASTICSEARCH_URL=http://elasticsearch:9200
@@ -39,13 +59,30 @@ services:
     ports:
       - "12201:12201/udp"
     networks:
-      - elastic
+      - elk_network
     configs:
       - source: ls_config
         target: /usr/share/logstash/pipeline/logstash.conf
+    deploy:
+      placement:
+        max_replicas_per_node: 1
+        constraints:
+        - node.hostname == ccm-l2-kafka-node1
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"    # number of files or file count
+        max-size: "200m" # file size
+
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION:-7.9.1}
+    image: ${DOCKER_REPO:-}elastic/kibana:${ELASTIC_VERSION:-8.3.3}
     hostname: "{{.Node.Hostname}}-kibana"
     environment:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
@@ -53,7 +90,7 @@ services:
       - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
       - SERVER_NAME="{{.Node.Hostname}}-kibana"
     networks:
-      - elastic
+      - elk_network
     ports:
       - target: 5601
         published: 5601
@@ -62,12 +99,27 @@ services:
     volumes:
       - kibana:/usr/share/kibana/data
     deploy:
- 
+      placement:
+        max_replicas_per_node: 1
+        constraints:
+        - node.hostname == ccm-l2-kafka-node2
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"    # number of files or file count
+        max-size: "200m" # file size
+
   apm-server:
-    image: docker.elastic.co/apm/apm-server:${ELASTIC_VERSION:-7.9.1}
+    image: ${DOCKER_REPO:-}elastic/apm-server:${ELASTIC_VERSION:-8.3.3}
     hostname: "{{.Node.Hostname}}-apm-server"
     networks:
-      - elastic
+      - elk_network
     command: > 
         --strict.perms=false -e
         -E apm-server.rum.enabled=true
@@ -90,17 +142,34 @@ services:
         - com.df.servicePath=/
         - com.df.port=8200
         - com.df.srcPort=8200
+      placement:
+        max_replicas_per_node: 1
+        constraints:
+        - node.hostname == ccm-l2-kafka-node3
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"    # number of files or file count
+        max-size: "200m" # file size
 
   # How to Tune Elastic Beats Performance: A Practical Example with Batch Size, Worker Count, and More
   # https://www.elastic.co/blog/how-to-tune-elastic-beats-performance-a-practical-example-with-batch-size-worker-count-and-more?blade=tw&hulk=social
   filebeat:
-    image: docker.elastic.co/beats/filebeat:${ELASTIC_VERSION:-7.9.1}
+    image: ${DOCKER_REPO:-}elastic/filebeat:${ELASTIC_VERSION:-8.3.3}
     # https://github.com/docker/swarmkit/issues/1951
     hostname: "{{.Node.Hostname}}-filebeat"
     # Need to override user so we can access the log files, and docker.sock
     user: root
     networks:
-      - elastic
+      - elk_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     configs:
       - source: fb_config
         target: /usr/share/filebeat/filebeat.yml
@@ -127,14 +196,30 @@ services:
     command: ["--strict.perms=false"]
     deploy:
       mode: global
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"    # number of files or file count
+        max-size: "200m" # file size
 
 networks:
-  elastic:
+  elk_network:
     external: true
 
 volumes:
   elasticsearch:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /kafka/elasticsearch
   kibana:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /kafka/kibana
+ 
   filebeat:
 
 configs:
