@@ -6,19 +6,19 @@ filebeat.modules:
     enabled: true
   auth:
     enabled: true
-- module: auditd
-  log:
+    #- module: auditd
+    #log:
     # - Does not look like Auditd is supported in Alpine linux: https://github.com/linuxkit/linuxkit/issues/52
     # - CentOS does not need us to install the audit system, it ships as standard. If you are using Ubuntu, though,
     # this is probably something you would want to install. (sudo apt-get install -y auditd audispd-plugins)
     enabled: true
 
-filebeat.inputs:
-- type: container
-  enabled: true
-  paths:
-    -/var/lib/docker/containers/*/*.log
-  stream: all # can be all, stdout or stderr
+    #filebeat.inputs:
+    #- type: container
+    #  enabled: true
+    #  paths:
+    #    -/var/lib/docker/containers/*/*.log
+    #  stream: all # can be all, stdout or stderr
 
 #========================== Filebeat autodiscover ==============================
 # See this URL on how to run Apache2 Filebeat module: # https://www.elastic.co/guide/en/beats/filebeat/current/running-on-docker.html
@@ -40,7 +40,8 @@ processors:
 
 #========================== Elasticsearch output ===============================
 output.elasticsearch:
-  hosts: ["${ELASTICSEARCH_HOST}:9200"]
+  #hosts: ["${ELASTICSEARCH_HOST}:9200"]
+  hosts: ["elasticsearch:9200"]
   username: ${ELASTICSEARCH_USERNAME}
   password: ${ELASTICSEARCH_PASSWORD}
 
@@ -50,7 +51,8 @@ setup.dashboards:
 
 #============================== Kibana =========================================
 setup.kibana:
-  host: "${KIBANA_HOST}:80"
+  #host: "${KIBANA_HOST}:5601"
+  host: "kibana:5601"
   username: ${ELASTICSEARCH_USERNAME}
   password: ${ELASTICSEARCH_PASSWORD}
 

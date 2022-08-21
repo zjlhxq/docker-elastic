@@ -1,40 +1,9 @@
-version: "3.8"
+version: "3.9"
 
 # 10 Things to Consider When Planning Your Elasticsearch Project: https://ecmarchitect.com/archives/2015/07/27/4031
 # Using Apache JMeter to Test Elasticsearch: https://ecmarchitect.com/archives/2014/09/02/3915
 
 services:
-
-  swarm-listener:
-    image: dockerflow/docker-flow-swarm-listener:latest
-    hostname: swarm-listener
-    networks:
-      - elastic
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-    environment:
-      - DF_NOTIFY_CREATE_SERVICE_URL=http://proxy:8080/v1/docker-flow-proxy/reconfigure
-      - DF_NOTIFY_REMOVE_SERVICE_URL=http://proxy:8080/v1/docker-flow-proxy/remove
-    deploy:
-      placement:
-        constraints: [node.role == manager]
-
-  proxy:
-    image: dockerflow/docker-flow-proxy:latest
-    hostname: proxy
-    ports:
-      - "80:80"
-      - "443:443"
-      - "9200:9200"
-      - "8200:8200"
-    networks:
-      - elastic
-    environment:
-      - LISTENER_ADDRESS=swarm-listener
-      - MODE=swarm
-      - BIND_PORTS=9200,8200
-    deploy:
-      replicas: 2
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-7.9.1}
@@ -45,24 +14,20 @@ services:
       - cluster.initial_master_nodes=${INITIAL_MASTER_NODES:-node1}
       - cluster.name=DevOps
       - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
-      - xpack.security.enabled=true
-      - xpack.monitoring.collection.enabled=true
-      - xpack.security.audit.enabled=true
+      - xpack.security.enabled=false
+      - xpack.monitoring.collection.enabled=false
+      - xpack.security.audit.enabled=false
       - xpack.license.self_generated.type=basic
       - network.host=0.0.0.0
     networks:
       - elastic
+    ports:
+      - 9200:9200
     volumes:
       - elasticsearch:/usr/share/elasticsearch/data
     deploy:
       mode: 'global'
-      endpoint_mode: dnsrr
-      labels:
-        - com.df.notify=true
-        - com.df.distribute=true
-        - com.df.servicePath=/
-        - com.df.port=9200
-        - com.df.srcPort=9200
+      #  endpoint_mode: dnsrr
 
   logstash:
     image: docker.elastic.co/logstash/logstash:${ELASTIC_VERSION:-7.9.1}
@@ -89,16 +54,15 @@ services:
       - SERVER_NAME="{{.Node.Hostname}}-kibana"
     networks:
       - elastic
+    ports:
+      - target: 5601
+        published: 5601
+        protocol: tcp
+        mode: host
     volumes:
       - kibana:/usr/share/kibana/data
     deploy:
-      labels:
-        - com.df.notify=true
-        - com.df.distribute=true
-        - com.df.servicePath=/
-        - com.df.port=5601
-        - com.df.srcPort=80
-  
+ 
   apm-server:
     image: docker.elastic.co/apm/apm-server:${ELASTIC_VERSION:-7.9.1}
     hostname: "{{.Node.Hostname}}-apm-server"
@@ -118,7 +82,7 @@ services:
         -E output.elasticsearch.hosts=["elasticsearch:9200"]
         -E output.elasticsearch.username=${ELASTICSEARCH_USERNAME}
         -E output.elasticsearch.password=${ELASTICSEARCH_PASSWORD}
-        -E xpack.monitoring.enabled=true
+        -E xpack.monitoring.enabled=false
     deploy:
       labels:
         - com.df.notify=true
@@ -126,15 +90,57 @@ services:
         - com.df.servicePath=/
         - com.df.port=8200
         - com.df.srcPort=8200
-      
+
+  # How to Tune Elastic Beats Performance: A Practical Example with Batch Size, Worker Count, and More
+  # https://www.elastic.co/blog/how-to-tune-elastic-beats-performance-a-practical-example-with-batch-size-worker-count-and-more?blade=tw&hulk=social
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${ELASTIC_VERSION:-7.9.1}
+    # https://github.com/docker/swarmkit/issues/1951
+    hostname: "{{.Node.Hostname}}-filebeat"
+    # Need to override user so we can access the log files, and docker.sock
+    user: root
+    networks:
+      - elastic
+    configs:
+      - source: fb_config
+        target: /usr/share/filebeat/filebeat.yml
+    volumes:
+      - filebeat:/usr/share/filebeat/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      # This is needed for filebeat to load container log path as specified in filebeat.yml
+      - /var/lib/docker/containers/:/var/lib/docker/containers/:ro
+
+      # # This is needed for filebeat to load jenkins build log path as specified in filebeat.yml
+      # - /var/lib/docker/volumes/jenkins_home/_data/jobs/:/var/lib/docker/volumes/jenkins_home/_data/jobs/:ro
+
+      # This is needed for filebeat to load logs for system and auth modules
+      - /var/log/:/var/log/:ro
+      # This is needed for filebeat to load logs for auditd module. you might have to install audit system
+      # on ubuntu first (sudo apt-get install -y auditd audispd-plugins)
+      #- /var/log/audit/:/var/log/audit/:ro
+    environment:
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-nextgen}
+      - KIBANA_HOST=${KIBANA_HOST:-nextgen}
+      - ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME:-elastic}
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
+    # disable strict permission checks
+    command: ["--strict.perms=false"]
+    deploy:
+      mode: global
+
 networks:
-    elastic:
-      external: true
+  elastic:
+    external: true
 
 volumes:
   elasticsearch:
   kibana:
+  filebeat:
 
 configs:
   ls_config:
     file: $PWD/elk/logstash/config/pipeline/logstash.conf
+  fb_config:
+    file: $PWD/elk/beats/filebeat/config/filebeat.yml
+
+
