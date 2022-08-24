@@ -40,8 +40,7 @@ processors:
 
 #========================== Elasticsearch output ===============================
 output.elasticsearch:
-  #hosts: ["${ELASTICSEARCH_HOST}:9200"]
-  hosts: ["elasticsearch:9200"]
+  hosts: ["ccm-l2-kafka-node1:9200","ccm-l2-kafka-node2:9200","ccm-l2-kafka-node3:9200"]
   username: ${ELASTICSEARCH_USERNAME}
   password: ${ELASTICSEARCH_PASSWORD}
 
@@ -51,8 +50,7 @@ setup.dashboards:
 
 #============================== Kibana =========================================
 setup.kibana:
-  #host: "${KIBANA_HOST}:5601"
-  host: "kibana:5601"
+  host: "${KIBANA_HOST}:5601"
   username: ${ELASTICSEARCH_USERNAME}
   password: ${ELASTICSEARCH_PASSWORD}
 

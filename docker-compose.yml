@@ -6,7 +6,8 @@ version: "3.9"
 services:
 
   elasticsearch:
-    image: ${DOCKER_REPO:-}elastic/elasticsearch:${ELASTIC_VERSION:-8.3.3}
+    image: ${DOCKER_REPO:-}elastic/elasticsearch:${ELASTIC_VERSION:-7.17.5}
+    hostname: "{{.Node.Hostname}}"
     environment:
       # https://github.com/docker/swarmkit/issues/1951
       - node.name={{.Node.Hostname}}
@@ -14,10 +15,11 @@ services:
       - cluster.initial_master_nodes=${INITIAL_MASTER_NODES:-ccm-l2-kafka-node1}
       - cluster.name=elk
       - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
-      - xpack.security.enabled=true
+        #- xpack.security.enabled=true
       - xpack.monitoring.collection.enabled=true
-      - xpack.security.audit.enabled=false
+        #- xpack.security.audit.enabled=false
       - xpack.license.self_generated.type=basic
+        #- xpack.security.transport.ssl.enabled=true
       - network.host=0.0.0.0
       - "ES_JAVA_OPTS=-Xms${ES_HEAP_SIZE:-2g} -Xmx${ES_HEAP_SIZE:-2g}"
     ulimits:
@@ -26,10 +28,12 @@ services:
         hard: -1
     networks:
       - elk_network
-    ports:
-      - 9200:9200
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "ccm-l2-kafka-node1:10.68.22.60"
+      - "ccm-l2-kafka-node2:10.68.22.71"
+      - "ccm-l2-kafka-node3:10.68.22.62"
+
     volumes:
       - elasticsearch:/usr/share/elasticsearch/data
     deploy:
@@ -50,16 +54,19 @@ services:
         max-size: "200m" # file size
 
   logstash:
-    image: ${DOCKER_REPO:-}elastic/logstash:${ELASTIC_VERSION:-8.3.3}
+    image: ${DOCKER_REPO:-}elastic/logstash:${ELASTIC_VERSION:-7.17.5}
     hostname: "{{.Node.Hostname}}-logstash"
     environment:
-      - XPACK_MONITORING_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - XPACK_MONITORING_ELASTICSEARCH_URL=http://ccm-l2-kafka-node1:9200
       - XPACK_MONITORING_ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME:-elastic}
       - XPACK_MONITORING_ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
-    ports:
-      - "12201:12201/udp"
     networks:
       - elk_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "ccm-l2-kafka-node1:10.68.22.60"
+      - "ccm-l2-kafka-node2:10.68.22.71"
+      - "ccm-l2-kafka-node3:10.68.22.62"
     configs:
       - source: ls_config
         target: /usr/share/logstash/pipeline/logstash.conf
@@ -82,20 +89,22 @@ services:
 
 
   kibana:
-    image: ${DOCKER_REPO:-}elastic/kibana:${ELASTIC_VERSION:-8.3.3}
+    image: ${DOCKER_REPO:-}elastic/kibana:${ELASTIC_VERSION:-7.17.5}
     hostname: "{{.Node.Hostname}}-kibana"
     environment:
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
+            #- ELASTICSEARCH_URL=http://ccm-l2-kafka-node2:9200
+      - ELASTICSEARCH_HOSTS=["http://ccm-l2-kafka-node2:9200"]
       - ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME:-elastic}
       - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
       - SERVER_NAME="{{.Node.Hostname}}-kibana"
+        #- xpack.encryptedSavedObjects.encryptionKey="73357638792F423F4528482B4D625165"
     networks:
       - elk_network
-    ports:
-      - target: 5601
-        published: 5601
-        protocol: tcp
-        mode: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "ccm-l2-kafka-node1:10.68.22.60"
+      - "ccm-l2-kafka-node2:10.68.22.71"
+      - "ccm-l2-kafka-node3:10.68.22.62"
     volumes:
       - kibana:/usr/share/kibana/data
     deploy:
@@ -116,22 +125,22 @@ services:
         max-size: "200m" # file size
 
   apm-server:
-    image: ${DOCKER_REPO:-}elastic/apm-server:${ELASTIC_VERSION:-8.3.3}
+    image: ${DOCKER_REPO:-}elastic/apm-server:${ELASTIC_VERSION:-7.17.5}
     hostname: "{{.Node.Hostname}}-apm-server"
     networks:
       - elk_network
     command: > 
         --strict.perms=false -e
         -E apm-server.rum.enabled=true
-        -E setup.kibana.host=kibana:5601
+        -E setup.kibana.host=${KIBANA_HOST}:5601
         -E setup.kibana.username=${ELASTICSEARCH_USERNAME}
         -E setup.kibana.password=${ELASTICSEARCH_PASSWORD}
         -E setup.template.settings.index.number_of_replicas=0
         -E apm-server.kibana.enabled=true
-        -E apm-server.kibana.host=kibana:5601
+        -E apm-server.kibana.host=${KIBANA_HOST}:5601
         -E apm-server.kibana.username=${ELASTICSEARCH_USERNAME}
         -E apm-server.kibana.password=${ELASTICSEARCH_PASSWORD}
-        -E output.elasticsearch.hosts=["elasticsearch:9200"]
+        -E output.elasticsearch.hosts=["${ELASTICSEARCH_HOST}:9200"]
         -E output.elasticsearch.username=${ELASTICSEARCH_USERNAME}
         -E output.elasticsearch.password=${ELASTICSEARCH_PASSWORD}
         -E xpack.monitoring.enabled=false
@@ -161,7 +170,7 @@ services:
   # How to Tune Elastic Beats Performance: A Practical Example with Batch Size, Worker Count, and More
   # https://www.elastic.co/blog/how-to-tune-elastic-beats-performance-a-practical-example-with-batch-size-worker-count-and-more?blade=tw&hulk=social
   filebeat:
-    image: ${DOCKER_REPO:-}elastic/filebeat:${ELASTIC_VERSION:-8.3.3}
+    image: ${DOCKER_REPO:-}elastic/filebeat:${ELASTIC_VERSION:-7.17.5}
     # https://github.com/docker/swarmkit/issues/1951
     hostname: "{{.Node.Hostname}}-filebeat"
     # Need to override user so we can access the log files, and docker.sock
@@ -170,6 +179,9 @@ services:
       - elk_network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "ccm-l2-kafka-node1:10.68.22.60"
+      - "ccm-l2-kafka-node2:10.68.22.71"
+      - "ccm-l2-kafka-node3:10.68.22.62"
     configs:
       - source: fb_config
         target: /usr/share/filebeat/filebeat.yml
@@ -205,6 +217,7 @@ services:
 networks:
   elk_network:
     external: true
+    name: host
 
 volumes:
   elasticsearch:
@@ -227,5 +240,7 @@ configs:
     file: $PWD/elk/logstash/config/pipeline/logstash.conf
   fb_config:
     file: $PWD/elk/beats/filebeat/config/filebeat.yml
+
+
 
 
