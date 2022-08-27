@@ -5,9 +5,10 @@ version: "3.9"
 
 services:
 
-  elasticsearch:
+  elasticsearch_server:
     image: ${DOCKER_REPO:-}elastic/elasticsearch:${ELASTIC_VERSION:-7.17.5}
     hostname: "{{.Node.Hostname}}"
+    #    user: "${UID}:0"
     environment:
       # https://github.com/docker/swarmkit/issues/1951
       - node.name={{.Node.Hostname}}
@@ -15,13 +16,15 @@ services:
       - cluster.initial_master_nodes=${INITIAL_MASTER_NODES:-ccm-l2-kafka-node1}
       - cluster.name=elk
       - ELASTIC_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
-        #- xpack.security.enabled=true
+      - xpack.security.enabled=false
       - xpack.monitoring.collection.enabled=true
         #- xpack.security.audit.enabled=false
       - xpack.license.self_generated.type=basic
         #- xpack.security.transport.ssl.enabled=true
       - network.host=0.0.0.0
       - "ES_JAVA_OPTS=-Xms${ES_HEAP_SIZE:-2g} -Xmx${ES_HEAP_SIZE:-2g}"
+        #      - TAKE_FILE_OWNERSHIP="true"
+        #    command: /bin/bash -c 'chmod 1777 /tmp'
     ulimits:
       memlock:
         soft: -1
@@ -35,7 +38,8 @@ services:
       - "ccm-l2-kafka-node3:10.68.22.62"
 
     volumes:
-      - elasticsearch:/usr/share/elasticsearch/data
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - elasticsearch-config:/usr/share/elasticsearch/config
     deploy:
       placement:
         max_replicas_per_node: 1
@@ -53,39 +57,39 @@ services:
         max-file: "5"    # number of files or file count
         max-size: "200m" # file size
 
-  logstash:
-    image: ${DOCKER_REPO:-}elastic/logstash:${ELASTIC_VERSION:-7.17.5}
-    hostname: "{{.Node.Hostname}}-logstash"
-    environment:
-      - XPACK_MONITORING_ELASTICSEARCH_URL=http://ccm-l2-kafka-node1:9200
-      - XPACK_MONITORING_ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME:-elastic}
-      - XPACK_MONITORING_ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
-    networks:
-      - elk_network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-      - "ccm-l2-kafka-node1:10.68.22.60"
-      - "ccm-l2-kafka-node2:10.68.22.71"
-      - "ccm-l2-kafka-node3:10.68.22.62"
-    configs:
-      - source: ls_config
-        target: /usr/share/logstash/pipeline/logstash.conf
-    deploy:
-      placement:
-        max_replicas_per_node: 1
-        constraints:
-        - node.hostname == ccm-l2-kafka-node1
-      replicas: 1
-      update_config:
-        parallelism: 1
-        delay: 10s
-      restart_policy:
-        condition: on-failure
-    logging:
-      driver: "json-file"
-      options:
-        max-file: "5"    # number of files or file count
-        max-size: "200m" # file size
+        #  logstash:
+        #    image: ${DOCKER_REPO:-}elastic/logstash:${ELASTIC_VERSION:-7.17.5}
+        #    hostname: "{{.Node.Hostname}}-logstash"
+        #    environment:
+        #      - XPACK_MONITORING_ELASTICSEARCH_URL=http://ccm-l2-kafka-node1:9200
+        #      - XPACK_MONITORING_ELASTICSEARCH_USERNAME=${ELASTICSEARCH_USERNAME:-elastic}
+        #      - XPACK_MONITORING_ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
+        #    networks:
+        #      - elk_network
+        #    extra_hosts:
+        #      - "host.docker.internal:host-gateway"
+        #      - "ccm-l2-kafka-node1:10.68.22.60"
+        #      - "ccm-l2-kafka-node2:10.68.22.71"
+        #      - "ccm-l2-kafka-node3:10.68.22.62"
+        #    configs:
+        #      - source: ls_config
+        #        target: /usr/share/logstash/pipeline/logstash.conf
+        #    deploy:
+        #      placement:
+        #        max_replicas_per_node: 1
+        #        constraints:
+        #        - node.hostname == ccm-l2-kafka-node1
+        #      replicas: 1
+        #      update_config:
+        #        parallelism: 1
+        #        delay: 10s
+        #      restart_policy:
+        #        condition: on-failure
+        #    logging:
+        #      driver: "json-file"
+        #      options:
+        #        max-file: "5"    # number of files or file count
+        #        max-size: "200m" # file size
 
 
   kibana:
@@ -208,6 +212,17 @@ services:
     command: ["--strict.perms=false"]
     deploy:
       mode: global
+      placement:
+        max_replicas_per_node: 1
+        #  constraints:
+        #  - node.hostname != ccm1-l2-dev
+      #replicas: 1
+      #      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
     logging:
       driver: "json-file"
       options:
@@ -220,12 +235,18 @@ networks:
     name: host
 
 volumes:
-  elasticsearch:
+  elasticsearch-data:
     driver: local
     driver_opts:
       o: bind
       type: none
-      device: /kafka/elasticsearch
+      device: /kafka/elasticsearch/data
+  elasticsearch-config:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /kafka/elasticsearch/config
   kibana:
     driver: local
     driver_opts:

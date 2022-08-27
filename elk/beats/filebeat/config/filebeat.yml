@@ -16,9 +16,9 @@ filebeat.modules:
 filebeat.inputs:
 - type: container
   enabled: true
-    #  paths:
-    #    -/var/lib/docker/containers/*/*.log
-    #  stream: all # can be all, stdout or stderr
+  paths:
+    -/data/docker/containers/*/*.log
+  stream: all # can be all, stdout or stderr
   containers.ids: '*'
   containers.path: /data/docker/containers
 #========================== Filebeat autodiscover ==============================
@@ -26,8 +26,8 @@ filebeat.inputs:
 #filebeat.autodiscover:
 #  providers:
 #    - type: docker
-      # https://www.elastic.co/guide/en/beats/filebeat/current/configuration-autodiscover-hints.html
-      # This URL alos contains instructions on multi-line logs
+#     # https://www.elastic.co/guide/en/beats/filebeat/current/configuration-autodiscover-hints.html
+#     # This URL alos contains instructions on multi-line logs
 #      hints.enabled: true
 
 #================================ Processors ===================================
