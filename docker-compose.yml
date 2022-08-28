@@ -193,7 +193,7 @@ services:
       - filebeat:/usr/share/filebeat/data
       - /var/run/docker.sock:/var/run/docker.sock
       # This is needed for filebeat to load container log path as specified in filebeat.yml
-      - /var/lib/docker/containers/:/var/lib/docker/containers/:ro
+      - /data/docker/containers/:/var/lib/docker/containers/:ro
 
       # # This is needed for filebeat to load jenkins build log path as specified in filebeat.yml
       # - /var/lib/docker/volumes/jenkins_home/_data/jobs/:/var/lib/docker/volumes/jenkins_home/_data/jobs/:ro
@@ -212,12 +212,6 @@ services:
     command: ["--strict.perms=false"]
     deploy:
       mode: global
-      placement:
-        max_replicas_per_node: 1
-        #  constraints:
-        #  - node.hostname != ccm1-l2-dev
-      #replicas: 1
-      #      replicas: 3
       update_config:
         parallelism: 1
         delay: 10s
