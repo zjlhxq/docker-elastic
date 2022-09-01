@@ -8,7 +8,6 @@ services:
   elasticsearch_server:
     image: ${DOCKER_REPO:-}elastic/elasticsearch:${ELASTIC_VERSION:-7.17.5}
     hostname: "{{.Node.Hostname}}"
-    #    user: "${UID}:0"
     environment:
       # https://github.com/docker/swarmkit/issues/1951
       - node.name={{.Node.Hostname}}
@@ -212,6 +211,56 @@ services:
     command: ["-e","--strict.perms=false"]
     deploy:
       mode: global
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-file: "5"    # number of files or file count
+        max-size: "200m" # file size
+
+  es-connect:
+    image: ${DOCKER_REPO:-}nextgen-kafka-connect:${IMAGE_TAG:-latest}
+    hostname: "{{.Node.Hostname}}"
+    networks:
+      - elk_network
+    extra_hosts:
+      - "ccm-l2-kafka-node1:10.68.22.60"
+      - "ccm-l2-kafka-node2:10.68.22.71"
+      - "ccm-l2-kafka-node3:10.68.22.62"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: "${BOOTSTRAP_SERVERS:-localhost:9092}"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "{{.Node.Hostname}}"
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "es-sink-connect-group"
+      CONNECT_CONFIG_STORAGE_TOPIC: "es-sink-connect-configs"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 22
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_OFFSET_STORAGE_TOPIC: "es-sink-connect-offsets"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 2
+      CONNECT_STATUS_STORAGE_TOPIC: "es-sink-connect-status"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 2
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "${SCHEMA_REGISTRY_URL:-localhost:8081}"
+      CONNECT_CONNECTOR_CLIENT_CONFIG_OVERRIDE_POLICY: "All"
+      # CLASSPATH required due to CC-2422
+      CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-6.2.0.jar
+      PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors"
+      LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+      CONNECT_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN: "[%d] %p %X{connector.context}%m (%c:%L)%n"
+      KAFKA_HEAP_OPTS: "-Xms2g -Xmx2g -XX:MetaspaceSize=96m -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:G1HeapRegionSize=16M -XX:MinMetaspaceFreeRatio=50 -XX:MaxMetaspaceFreeRatio=80"
+    deploy:
+      placement:
+        max_replicas_per_node: 1
+        constraints:
+        - node.labels.ElasticNode == ccm-elastic-node
+      replicas: 2
       update_config:
         parallelism: 1
         delay: 10s
