@@ -237,7 +237,7 @@ services:
       CONNECT_REST_PORT: 8083
       CONNECT_GROUP_ID: "es-sink-connect-group"
       CONNECT_CONFIG_STORAGE_TOPIC: "es-sink-connect-configs"
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 22
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 2
       CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
       CONNECT_OFFSET_STORAGE_TOPIC: "es-sink-connect-offsets"
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 2
@@ -253,6 +253,7 @@ services:
       CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors"
       LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+      CONNECT_LOG4J_LOGGERS: "log4j.logger.io.confluent=DEBUG"
       CONNECT_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN: "[%d] %p %X{connector.context}%m (%c:%L)%n"
       KAFKA_HEAP_OPTS: "-Xms2g -Xmx2g -XX:MetaspaceSize=96m -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35 -XX:G1HeapRegionSize=16M -XX:MinMetaspaceFreeRatio=50 -XX:MaxMetaspaceFreeRatio=80"
     deploy:
@@ -260,7 +261,7 @@ services:
         max_replicas_per_node: 1
         constraints:
         - node.labels.ElasticNode == ccm-elastic-node
-      replicas: 2
+      replicas: 3
       update_config:
         parallelism: 1
         delay: 10s
