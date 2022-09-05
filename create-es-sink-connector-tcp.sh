@@ -5,26 +5,29 @@ export SCHEMA_REGISTRY_URL="http://ccm-l2-kafka-node1:8081"
 generate_payload() {
 cat <<EOF
 {
-  "name": "es-sink-connector-avro",
+  "name": "es-sink-connector-tcp-raw",
   "config": {
     "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
     "connection.url": "http://ccm-l2-kafka-node1:9200",
-    "topics": "ccm1-tcp-inbound-data-deserialized,ccm2-tcp-inbound-data-deserialized,ccm1-plc-inbound-raw-data,ccm2-plc-inbound-raw-data,ccm1-plc-inbound-raw-data-passthrough,ccm2-plc-inbound-raw-data-passthrough",
+    "topics": "ccm1-tcp-inbound-raw-data,ccm2-tcp-inbound-raw-data,ccm1-tcp-outbound-raw-data,ccm2-tcp-outbound-raw-data",
     "key.ignore": "true",
     "tasks.max": 1,
-    "type.name": "_doc", 
-    "transforms": "InsertTimestamp,ConvertTimestamp",
+    "consumer.auto.offset.reset": "earliest",
+    "flush.synchronously": "true",
+    "type.name": "kafka-connect", 
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "transforms": "MakeMap,InsertSource,InsertTimestamp,ConvertTimestamp",
+    "transforms.MakeMap.type": "org.apache.kafka.connect.transforms.HoistField\$Value",
+    "transforms.MakeMap.field": "message",
+    "transforms.InsertSource.type": "org.apache.kafka.connect.transforms.InsertField\$Value",
+    "transforms.InsertSource.static.field": "data_source",
+    "transforms.InsertSource.static.value": "tcp-source",
     "transforms.InsertTimestamp.type": "org.apache.kafka.connect.transforms.InsertField\$Value",
     "transforms.InsertTimestamp.timestamp.field": "@timestamp",
     "transforms.ConvertTimestamp.type": "org.apache.kafka.connect.transforms.TimestampConverter\$Value",
     "transforms.ConvertTimestamp.field": "@timestamp",
     "transforms.ConvertTimestamp.format": "yyyy-MM-dd'T'HH:mm:ss'Z'",
     "transforms.ConvertTimestamp.target.type": "string",
-    "value.converter": "io.confluent.connect.avro.AvroConverter",
-    "value.converter.schema.registry.url": "$SCHEMA_REGISTRY_URL",
-    "value.converter.value.subject.name.strategy": "io.confluent.kafka.serializers.subject.RecordNameStrategy",
-    "value.converter.enhanced.avro.schema.support": true,
-    "consumer.auto.offset.reset": "earliest",
     "behavior.on.malformed.documents": "ignore"
   }
 }
