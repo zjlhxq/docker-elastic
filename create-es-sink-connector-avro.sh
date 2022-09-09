@@ -9,7 +9,7 @@ cat <<EOF
   "config": {
     "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
     "connection.url": "http://ccm-l2-kafka-node1:9200",
-    "topics": "ccm1-tcp-inbound-data-deserialized,ccm2-tcp-inbound-data-deserialized,ccm1-plc-inbound-raw-data,ccm2-plc-inbound-raw-data,ccm1-plc-inbound-raw-data-passthrough,ccm2-plc-inbound-raw-data-passthrough",
+    "topics": "ccm1-tcp-inbound-data-deserialized,ccm2-tcp-inbound-data-deserialized,ccm1-plc-inbound-raw-data,ccm2-plc-inbound-raw-data,ccm1-plc-inbound-raw-data-passthrough,ccm2-plc-inbound-raw-data-passthrough,ccm1-event-log-records,ccm2-event-log-records",
     "key.ignore": "true",
     "tasks.max": 1,
     "type.name": "_doc", 
