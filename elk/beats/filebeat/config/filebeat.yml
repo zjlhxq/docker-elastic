@@ -48,8 +48,8 @@ output.elasticsearch:
   hosts: ["ccm-l2-kafka-node1:9200","ccm-l2-kafka-node2:9200","ccm-l2-kafka-node3:9200"]
   username: ${ELASTICSEARCH_USERNAME}
   password: ${ELASTICSEARCH_PASSWORD}
-  indices:
-  - index: "filebeat-%{[agent.version]}-%{+yyyy.MM.dd}"
+#  indices:
+#  - index: "filebeat-%{[agent.version]}-%{+yyyy.MM.dd}"
 
 #============================== Dashboards =====================================
 setup.dashboards:
